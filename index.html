@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blind Typing Challenge — Scoreboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #161624;
+      --border: #1e1e32; --accent: #7c6ffa; --accent2: #a89cfc;
+      --text: #ddddf0; --muted: #52526e;
+      --gold: #f59e0b; --silver: #9ca3af; --bronze: #b45309;
+      --time-color: #4ade80;
+    }
+    html, body { min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+    .header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 16px 20px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 10;
+    }
+    .org { font-size: 10px; letter-spacing: .14em; color: var(--accent2); font-weight: 600; text-transform: uppercase; display: block; margin-bottom: 2px; }
+    .title { font-size: 18px; font-weight: 700; }
+    .live-badge { display: flex; align-items: center; gap: 6px; background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2); border-radius: 20px; padding: 5px 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; animation: blink 1.8s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .live-text { font-size: 11px; font-weight: 600; color: #4ade80; }
+    main { padding: 20px 12px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 340px; }
+    thead th { font-size: 10px; font-weight: 600; letter-spacing: .1em; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; text-transform: uppercase; white-space: nowrap; }
+    thead th.c { text-align: center; }
+    tbody td { padding: 13px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:hover td { background: rgba(255,255,255,.018); }
+    tbody tr.top3 td { background: rgba(124,111,250,.03); }
+    .rank-cell { width: 44px; text-align: center; }
+    .rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; }
+    .r1 { background: rgba(245,158,11,.12); color: var(--gold); border: 1px solid rgba(245,158,11,.25); }
+    .r2 { background: rgba(156,163,175,.1); color: var(--silver); border: 1px solid rgba(156,163,175,.2); }
+    .r3 { background: rgba(180,83,9,.12); color: var(--bronze); border: 1px solid rgba(180,83,9,.25); }
+    .rn { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .team-cell { display: flex; flex-direction: column; gap: 3px; }
+    .member1 { font-weight: 600; font-size: 15px; }
+    .member2 { font-size: 13px; color: var(--muted); }
+    .time-cell { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; color: var(--time-color); }
+    .time-cell.best { color: var(--gold); }
+    .empty { text-align: center; padding: 80px 20px; color: var(--muted); }
+    .empty-icon { font-size: 38px; margin-bottom: 12px; opacity: .35; }
+    .empty-msg { font-size: 14px; line-height: 1.6; }
+    footer { text-align: center; padding: 20px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div>
+      <span class="org">Blind Typing Challenge</span>
+      <span class="title">Scoreboard</span>
+    </div>
+    <div class="live-badge"><span class="dot"></span><span class="live-text">LIVE</span></div>
+  </header>
+  <main>
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">⌨️</div>
+      <div class="empty-msg">Challenge hasn't started yet.<br>Check back soon.</div>
+    </div>
+    <table id="standings-table" style="display:none">
+      <thead>
+        <tr>
+          <th class="c">#</th>
+          <th>Team</th>
+          <th class="c">Time (sec)</th>
+        </tr>
+      </thead>
+      <tbody id="standings-body"></tbody>
+    </table>
+  </main>
+  <footer>Blind Typing Challenge — University Fair</footer>
+  <script>
+    const BIN_ID  = '6ab2b72dffd5d1605323b6ee';
+    const API_KEY = '$2a$10$kTWZAmRf2LMtsqir/UHGb.2Nd0YygmGZP0BOCtj/BZhiuO2TTgXjm';
+
+    function esc(str) { return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function render(teams) {
+      const empty = document.getElementById('empty-state');
+      const table = document.getElementById('standings-table');
+      const tbody = document.getElementById('standings-body');
+      if (!teams || teams.length === 0) {
+        empty.style.display = 'block'; table.style.display = 'none'; return;
+      }
+      empty.style.display = 'none'; table.style.display = 'table';
+      const sorted = [...teams].sort((a, b) => a.time - b.time);
+      tbody.innerHTML = sorted.map((t, i) => {
+        const rc = i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+        const timeClass = i === 0 ? 'time-cell best' : 'time-cell';
+        return `<tr class="${i<3?'top3':''}">
+          <td class="rank-cell"><span class="rank-badge ${rc}">${i+1}</span></td>
+          <td>
+            <div class="team-cell">
+              <span class="member1">${esc(t.member1)}</span>
+              <span class="member2">${esc(t.member2)}</span>
+            </div>
+          </td>
+          <td class="${timeClass}">${t.time}s</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+          headers: { 'X-Master-Key': API_KEY }
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        render(data.record?.teams || []);
+      } catch(e) { console.error('Fetch error', e); }
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>
